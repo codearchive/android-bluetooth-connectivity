@@ -2,6 +2,8 @@ package com.example.module_010;
 
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothServerSocket;
+import android.bluetooth.BluetoothSocket;
 import android.content.Intent;
 import android.os.Handler;
 import android.os.Message;
@@ -14,7 +16,9 @@ import android.widget.EditText;
 import android.widget.ListView;
 import android.widget.TextView;
 
+import java.io.IOException;
 import java.util.Set;
+import java.util.UUID;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -33,6 +37,10 @@ public class MainActivity extends AppCompatActivity {
     static final int STATE_MESSAGE_RECEIVED = 5;
 
     int REQUEST_ENABLE_BLUETOOTH = 1;
+
+    private static final String APP_NAME = "BTChat";
+    private static final UUID MY_UUID = UUID.fromString("966972bb-dae4-4892-8bdf-14c0aa74423e");
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -67,6 +75,14 @@ public class MainActivity extends AppCompatActivity {
                     ArrayAdapter<String> arrayAdapter = new ArrayAdapter<String>(getApplicationContext(), android.R.layout.simple_list_item_1, strings);
                     listView_ListDevices.setAdapter(arrayAdapter);
                 }
+            }
+        });
+
+        button_Listen.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                ServerClass serverClass = new ServerClass();
+                serverClass.start();
             }
         });
     }
@@ -104,5 +120,43 @@ public class MainActivity extends AppCompatActivity {
         textView_Status = findViewById(R.id.textView_Status);
 
         editText_WriteMessage = findViewById(R.id.editText_WriteMessage);
+    }
+
+    private class ServerClass extends Thread{
+        private BluetoothServerSocket serverSocket;
+        public ServerClass() {
+            try {
+                serverSocket = myBluetoothAdapter.listenUsingInsecureRfcommWithServiceRecord(APP_NAME, MY_UUID);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        public void run() {
+            BluetoothSocket socket = null;
+
+            while (socket == null) {
+                try {
+                    Message message = Message.obtain();
+                    message.what = STATE_CONNECTING;
+                    handler.sendMessage(message);
+                    socket = serverSocket.accept();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    Message message = Message.obtain();
+                    message.what = STATE_CONNECTION_FAILED;
+                    handler.sendMessage(message);
+                }
+
+                if (socket != null) {
+                    Message message = Message.obtain();
+                    message.what = STATE_CONNECTED;
+                    handler.sendMessage(message);
+
+
+                    break;
+                }
+            }
+        }
     }
 }
