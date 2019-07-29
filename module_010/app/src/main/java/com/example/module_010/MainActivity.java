@@ -18,6 +18,8 @@ import android.widget.ListView;
 import android.widget.TextView;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.Set;
 import java.util.UUID;
 
@@ -30,6 +32,8 @@ public class MainActivity extends AppCompatActivity {
 
     BluetoothAdapter myBluetoothAdapter;
     BluetoothDevice[] btArray;
+
+    SendReceive sendReceive;
 
     static final int STATE_LISTENING = 1;
     static final int STATE_CONNECTING = 2;
@@ -65,6 +69,8 @@ public class MainActivity extends AppCompatActivity {
             public void onClick(View v) {
                 Set<BluetoothDevice> bt = myBluetoothAdapter.getBondedDevices();
                 String[] strings = new String[bt.size()];
+                btArray = new BluetoothDevice[bt.size()];
+
                 int index = 0;
 
                 if (bt.size() > 0){
@@ -96,6 +102,14 @@ public class MainActivity extends AppCompatActivity {
                 textView_Status.setText("Connecting");
             }
         });
+
+        button_Send.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                String string = String.valueOf(editText_WriteMessage.getText());
+                sendReceive.write(string.getBytes());
+            }
+        });
     }
 
     Handler handler = new Handler(new Handler.Callback() {
@@ -114,7 +128,9 @@ public class MainActivity extends AppCompatActivity {
                     textView_Status.setText("Connection failed");
                     break;
                 case STATE_MESSAGE_RECEIVED:
-                    // textView_Status.setText();
+                    byte[] readBuffer = (byte[]) msg.obj;
+                    String tempMsg = new String(readBuffer, 0, msg.arg1);
+                    messageBox_Message.setText(tempMsg);
             }
             return true;
         }
@@ -163,6 +179,9 @@ public class MainActivity extends AppCompatActivity {
                     Message message = Message.obtain();
                     message.what = STATE_CONNECTED;
                     handler.sendMessage(message);
+
+                    sendReceive = new SendReceive(socket);
+                    sendReceive.start();
                     break;
                 }
             }
@@ -188,11 +207,58 @@ public class MainActivity extends AppCompatActivity {
                 Message message = Message.obtain();
                 message.what = STATE_CONNECTED;
                 handler.sendMessage(message);
+
+                sendReceive = new SendReceive(socket);
+                sendReceive.start();
             } catch (IOException e) {
                 e.printStackTrace();
                 Message message = Message.obtain();
                 message.what = STATE_CONNECTION_FAILED;
                 handler.sendMessage(message);
+            }
+        }
+    }
+
+    private class SendReceive extends Thread {
+        private final BluetoothSocket bluetoothSocket;
+        private final InputStream inputStream;
+        private final OutputStream outputStream;
+
+        public SendReceive (BluetoothSocket socket) {
+            bluetoothSocket = socket;
+            InputStream tempIn = null;
+            OutputStream tempOut = null;
+
+            try {
+                tempIn = bluetoothSocket.getInputStream();
+                tempOut = bluetoothSocket.getOutputStream();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+            inputStream = tempIn;
+            outputStream = tempOut;
+        }
+
+        public void run() {
+            byte[] buffer = new byte[1024];
+            int bytes;
+
+            while (true) {
+                try {
+                    bytes = inputStream.read(buffer);
+                    handler.obtainMessage(STATE_MESSAGE_RECEIVED, bytes, -1, buffer).sendToTarget();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+
+        public void write(byte[] bytes) {
+            try {
+                outputStream.write(bytes);
+            } catch (IOException e) {
+                e.printStackTrace();
             }
         }
     }
