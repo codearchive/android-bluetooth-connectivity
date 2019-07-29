@@ -10,6 +10,7 @@ import android.os.Message;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.view.View;
+import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
@@ -85,6 +86,16 @@ public class MainActivity extends AppCompatActivity {
                 serverClass.start();
             }
         });
+
+        listView_ListDevices.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                ClientClass clientClass = new ClientClass(btArray[position]);
+                clientClass.start();
+
+                textView_Status.setText("Connecting");
+            }
+        });
     }
 
     Handler handler = new Handler(new Handler.Callback() {
@@ -152,10 +163,36 @@ public class MainActivity extends AppCompatActivity {
                     Message message = Message.obtain();
                     message.what = STATE_CONNECTED;
                     handler.sendMessage(message);
-
-
                     break;
                 }
+            }
+        }
+    }
+
+    private class ClientClass extends Thread {
+        private BluetoothDevice device;
+        private BluetoothSocket socket;Message message = Message.obtain();
+
+        public ClientClass (BluetoothDevice device1) {
+            device = device1;
+            try {
+                socket = device.createInsecureRfcommSocketToServiceRecord(MY_UUID);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        public void run() {
+            try {
+                socket.connect();
+                Message message = Message.obtain();
+                message.what = STATE_CONNECTED;
+                handler.sendMessage(message);
+            } catch (IOException e) {
+                e.printStackTrace();
+                Message message = Message.obtain();
+                message.what = STATE_CONNECTION_FAILED;
+                handler.sendMessage(message);
             }
         }
     }
